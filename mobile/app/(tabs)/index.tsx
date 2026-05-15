@@ -108,391 +108,550 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.heroSection}>
-        <Text style={styles.header}>Kaamlink</Text>
-        <Text style={styles.subHeader}>Service Orchestrator</Text>
-      </View>
-
-      <View style={styles.inputCard}>
-        <Text style={styles.inputLabel}>Describe Your Issue</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. AC thanda nahi kar raha, G-13 me a jao"
-          placeholderTextColor="#94a3b8"
-          value={requestText}
-          onChangeText={setRequestText}
-          multiline
-        />
-        <TouchableOpacity style={styles.buttonPrimary} onPress={sendRequest} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.buttonTextPrimary}>Find Provider</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.tracePanel}>
-        <View style={styles.traceHeaderRow}>
-          <Text style={styles.traceHeader}>System Activity Log</Text>
-          {(loading || isDiscovering) && <ActivityIndicator size="small" color="#64748b" />}
-        </View>
-        <ScrollView style={styles.traceScroll}>
-          {logs.length === 0 && <Text style={styles.logReasoning}>System idle.</Text>}
-          {logs.map((log, idx) => (
-            <View key={log.id || idx} style={styles.logItem}>
-              <View style={styles.logHeader}>
-                <Text style={styles.logAgent}>{log.agent_name}</Text>
-              </View>
-              <Text style={styles.logDecision}>{log.decision}</Text>
-              {log.reasoning && <Text style={styles.logReasoning}>{log.reasoning}</Text>}
-            </View>
-          ))}
-        </ScrollView>
-      </View>
-
-      {intentData && !bookingId && (
-        <View style={styles.resultContainer}>
-          <View style={styles.intentSummary}>
-            <Text style={styles.intentSummaryText}>
-              Extracted Intent: <Text style={styles.strong}>{intentData.service}</Text> in <Text style={styles.strong}>{intentData.location}</Text>
-            </Text>
+      <View style={styles.appWrapper}>
+        <View style={styles.headerArea}>
+          <View style={styles.logoBadge}>
+            <Text style={styles.logoBadgeText}>K</Text>
           </View>
-          
-          <Text style={styles.sectionTitle}>Available Providers</Text>
-          {providers.length === 0 && !isDiscovering ? (
-            <Text style={styles.emptyState}>No providers available for this criteria.</Text>
-          ) : (
-            providers.map((p) => (
-              <View key={p.id} style={styles.providerCard}>
-                <View style={styles.providerInfoRow}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{p.name.charAt(0)}</Text>
-                  </View>
-                  <View style={styles.providerDetailsCol}>
-                    <Text style={styles.providerName}>{p.name}</Text>
-                    <View style={styles.badgeRow}>
-                      <Text style={styles.badgeText}>⭐ {p.rating} / 5.0</Text>
-                      <Text style={styles.badgeText}>•</Text>
-                      <Text style={styles.badgeText}>📍 {p.location}</Text>
+          <View>
+            <Text style={styles.brandTitle}>Kaamlink</Text>
+            <Text style={styles.brandSubtitle}>AI Orchestrator</Text>
+          </View>
+        </View>
+
+        <View style={styles.mainCard}>
+          <Text style={styles.sectionHeading}>What do you need help with?</Text>
+          <TextInput
+            style={styles.inputField}
+            placeholder="Describe the issue (e.g. AC thanda nahi kar raha, G-13)"
+            placeholderTextColor="#9CA3AF"
+            value={requestText}
+            onChangeText={setRequestText}
+            multiline
+          />
+          <TouchableOpacity 
+            style={[styles.primaryActionBtn, !requestText.trim() && styles.primaryActionBtnDisabled]} 
+            onPress={sendRequest} 
+            disabled={loading || !requestText.trim()}
+          >
+            {loading ? (
+              <ActivityIndicator color="#ffffff" size="small" />
+            ) : (
+              <Text style={styles.primaryActionBtnText}>Analyze & Find Provider</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.diagnosticCard}>
+          <View style={styles.diagnosticHeader}>
+            <Text style={styles.diagnosticTitle}>System Diagnostics</Text>
+            <View style={styles.statusIndicator}>
+              <View style={[styles.statusDot, (loading || isDiscovering) ? styles.statusDotActive : {}]} />
+              <Text style={styles.statusText}>{(loading || isDiscovering) ? 'Processing' : 'Idle'}</Text>
+            </View>
+          </View>
+          <View style={styles.divider} />
+          <ScrollView style={styles.logContainer}>
+            {logs.length === 0 && <Text style={styles.logEmptyText}>No active operations.</Text>}
+            {logs.map((log, idx) => (
+              <View key={log.id || idx} style={styles.logEntry}>
+                <View style={styles.logTimelineNode} />
+                <View style={styles.logContent}>
+                  <Text style={styles.logAgentName}>{log.agent_name}</Text>
+                  <Text style={styles.logActionText}>{log.decision}</Text>
+                  {log.reasoning && <Text style={styles.logMetaText}>{log.reasoning}</Text>}
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+
+        {intentData && !bookingId && (
+          <View style={styles.resultsArea}>
+            <View style={styles.intentBadge}>
+              <Text style={styles.intentBadgeLabel}>Detected Intent</Text>
+              <Text style={styles.intentBadgeValue}>{intentData.service} • {intentData.location}</Text>
+            </View>
+            
+            <Text style={styles.sectionHeading}>Matched Providers</Text>
+            {providers.length === 0 && !isDiscovering ? (
+              <View style={styles.emptyStateBox}>
+                <Text style={styles.emptyStateText}>No providers match this request.</Text>
+              </View>
+            ) : (
+              providers.map((p) => (
+                <View key={p.id} style={styles.providerItem}>
+                  <View style={styles.providerItemTop}>
+                    <View style={styles.providerAvatar}>
+                      <Text style={styles.providerAvatarText}>{p.name.charAt(0)}</Text>
+                    </View>
+                    <View style={styles.providerMeta}>
+                      <Text style={styles.providerTitle}>{p.name}</Text>
+                      <View style={styles.providerStats}>
+                        <View style={styles.ratingPill}>
+                          <Text style={styles.ratingText}>★ {p.rating.toFixed(1)}</Text>
+                        </View>
+                        <Text style={styles.locationText}>{p.location}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.priceContainer}>
+                      <Text style={styles.priceLabel}>Base Rate</Text>
+                      <Text style={styles.priceValue}>Rs. {p.base_price}</Text>
                     </View>
                   </View>
-                </View>
-                <View style={styles.providerActionRow}>
-                  <Text style={styles.priceText}>Base Rate: <Text style={styles.strong}>Rs. {p.base_price}</Text></Text>
                   <TouchableOpacity 
-                    style={styles.bookBtn} 
+                    style={styles.bookActionBtn} 
                     onPress={() => bookProvider(p.id)}
                     disabled={bookingLoading}
                   >
-                    <Text style={styles.bookBtnText}>Book Service</Text>
+                    <Text style={styles.bookActionBtnText}>Book Appointment</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
-            ))
-          )}
-        </View>
-      )}
-
-      {bookingId && (
-        <View style={styles.receiptCard}>
-          <Text style={styles.receiptHeader}>Booking Confirmed</Text>
-          <View style={styles.receiptDetails}>
-            <Text style={styles.receiptRow}>
-              <Text style={styles.receiptLabel}>Booking ID:</Text> {bookingId}
-            </Text>
-            <Text style={styles.receiptRow}>
-              <Text style={styles.receiptLabel}>Service:</Text> {intentData.service}
-            </Text>
-            <Text style={styles.receiptRow}>
-              <Text style={styles.receiptLabel}>Status:</Text> <Text style={styles.statusSuccess}>Active</Text>
-            </Text>
+              ))
+            )}
           </View>
-          <TouchableOpacity style={styles.buttonOutline} onPress={() => {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            setBookingId(null); 
-            setIntentData(null); 
-            setProviders([]); 
-            setRequestText('');
-          }}>
-            <Text style={styles.buttonTextOutline}>New Request</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      <View style={{height: 50}} />
+        )}
+
+        {bookingId && (
+          <View style={styles.successCard}>
+            <View style={styles.successIconBox}>
+              <Text style={styles.successIcon}>✓</Text>
+            </View>
+            <Text style={styles.successTitle}>Booking Confirmed</Text>
+            <Text style={styles.successDesc}>Your service request has been processed successfully.</Text>
+            
+            <View style={styles.receiptDataBox}>
+              <View style={styles.receiptDataRow}>
+                <Text style={styles.receiptDataLabel}>Reference ID</Text>
+                <Text style={styles.receiptDataValue}>{bookingId.split('-')[0].toUpperCase()}</Text>
+              </View>
+              <View style={styles.receiptDataRow}>
+                <Text style={styles.receiptDataLabel}>Service</Text>
+                <Text style={styles.receiptDataValue}>{intentData.service}</Text>
+              </View>
+              <View style={[styles.receiptDataRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
+                <Text style={styles.receiptDataLabel}>Status</Text>
+                <Text style={styles.receiptStatusValue}>Awaiting Provider</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.secondaryActionBtn} onPress={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setBookingId(null); 
+              setIntentData(null); 
+              setProviders([]); 
+              setRequestText('');
+            }}>
+              <Text style={styles.secondaryActionBtnText}>Create New Request</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        <View style={{height: 80}} />
+      </View>
     </ScrollView>
   );
 }
 
+const BRAND_COLOR = '#635BFF'; // Stripe Blurple
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
-    padding: 20,
-    paddingTop: 50,
+    backgroundColor: '#F9FAFB', // Extremely light, neutral gray
   },
-  heroSection: {
+  appWrapper: {
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
+    padding: 24,
+    paddingTop: 64,
+  },
+  headerArea: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 40,
   },
-  header: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  subHeader: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 4,
-  },
-  inputCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+  logoBadge: {
+    width: 40,
+    height: 40,
+    backgroundColor: BRAND_COLOR,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    shadowColor: BRAND_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
+    elevation: 4,
+  },
+  logoBadgeText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  brandTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
+    letterSpacing: -0.5,
+  },
+  brandSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+    letterSpacing: 0.5,
+  },
+  mainCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 15,
     elevation: 2,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#F3F4F6',
   },
-  inputLabel: {
-    fontSize: 14,
+  sectionHeading: {
+    fontSize: 16,
     fontWeight: '600',
-    color: '#334155',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#f1f5f9',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    padding: 16,
-    minHeight: 100,
-    fontSize: 15,
-    color: '#0f172a',
-    textAlignVertical: 'top',
+    color: '#111827',
     marginBottom: 16,
   },
-  buttonPrimary: {
-    backgroundColor: '#2563eb',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonTextPrimary: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  tracePanel: {
-    backgroundColor: '#f1f5f9',
+  inputField: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 24,
-    height: 180,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    minHeight: 120,
+    fontSize: 15,
+    color: '#1F2937',
+    textAlignVertical: 'top',
+    marginBottom: 20,
+    lineHeight: 22,
   },
-  traceHeaderRow: {
+  primaryActionBtn: {
+    backgroundColor: '#111827', // Very dark slate for a premium feel
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  primaryActionBtnDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  primaryActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  diagnosticCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 15,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    height: 220,
+  },
+  diagnosticHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#cbd5e1',
-    paddingBottom: 8,
   },
-  traceHeader: {
-    color: '#475569',
-    fontWeight: '600',
+  diagnosticTitle: {
     fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  traceScroll: {
-    flex: 1,
-  },
-  logItem: {
-    marginBottom: 12,
-  },
-  logHeader: {
+  statusIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 2,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  logAgent: {
-    color: '#2563eb',
-    fontSize: 12,
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#9CA3AF',
+    marginRight: 6,
+  },
+  statusDotActive: {
+    backgroundColor: BRAND_COLOR,
+  },
+  statusText: {
+    fontSize: 11,
     fontWeight: '600',
+    color: '#4B5563',
   },
-  logDecision: {
-    color: '#334155',
-    fontSize: 14,
-    fontWeight: '500',
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 16,
   },
-  logReasoning: {
-    color: '#64748b',
+  logContainer: {
+    flex: 1,
+  },
+  logEmptyText: {
     fontSize: 13,
-    marginTop: 2,
-  },
-  resultContainer: {
-    width: '100%',
-  },
-  intentSummary: {
-    backgroundColor: '#e0e7ff',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#4f46e5',
-  },
-  intentSummaryText: {
-    color: '#3730a3',
-    fontSize: 14,
-  },
-  strong: {
-    fontWeight: '700',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#0f172a',
-    marginBottom: 12,
-  },
-  emptyState: {
-    color: '#64748b',
+    color: '#9CA3AF',
     fontStyle: 'italic',
   },
-  providerCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 12,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  providerInfoRow: {
+  logEntry: {
     flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 16,
   },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#e2e8f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+  logTimelineNode: {
+    width: 2,
+    backgroundColor: '#E5E7EB',
+    marginRight: 16,
+    position: 'relative',
+    marginTop: 6,
   },
-  avatarText: {
-    color: '#475569',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  providerDetailsCol: {
+  logContent: {
     flex: 1,
   },
-  providerName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0f172a',
+  logAgentName: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: BRAND_COLOR,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginBottom: 4,
   },
-  badgeRow: {
+  logActionText: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  logMetaText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  resultsArea: {
+    width: '100%',
+  },
+  intentBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#EEF2FF', // Indigo 50
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E0E7FF', // Indigo 100
   },
-  badgeText: {
-    color: '#64748b',
-    fontSize: 13,
+  intentBadgeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4F46E5', // Indigo 600
     marginRight: 8,
   },
-  providerActionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    paddingTop: 12,
-  },
-  priceText: {
-    color: '#475569',
+  intentBadgeValue: {
     fontSize: 14,
+    fontWeight: '700',
+    color: '#312E81', // Indigo 900
   },
-  bookBtn: {
-    backgroundColor: '#10b981',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 6,
-  },
-  bookBtnText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  receiptCard: {
-    backgroundColor: '#ffffff',
-    padding: 24,
-    borderRadius: 12,
-    marginTop: 10,
+  emptyStateBox: {
+    backgroundColor: '#FFFFFF',
+    padding: 32,
+    borderRadius: 16,
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#0f172a',
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  providerItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  providerItemTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  providerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  providerAvatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  providerMeta: {
+    flex: 1,
+  },
+  providerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 6,
+  },
+  providerStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ratingPill: {
+    backgroundColor: '#FEF3C7', // Amber 100
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginRight: 10,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B45309', // Amber 700
+  },
+  locationText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  priceContainer: {
+    alignItems: 'flex-end',
+  },
+  priceLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  priceValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  bookActionBtn: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  bookActionBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  successCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  receiptHeader: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  receiptDetails: {
-    width: '100%',
-    marginBottom: 24,
-    backgroundColor: '#f8fafc',
-    padding: 16,
-    borderRadius: 8,
+    shadowRadius: 20,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: '#F3F4F6',
+    marginTop: 16,
   },
-  receiptRow: {
-    fontSize: 14,
-    color: '#334155',
+  successIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#ECFDF5', // Emerald 50
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  successIcon: {
+    fontSize: 32,
+    color: '#10B981', // Emerald 500
+    fontWeight: '300',
+  },
+  successTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 8,
   },
-  receiptLabel: {
-    fontWeight: '600',
-    color: '#64748b',
+  successDesc: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 32,
   },
-  statusSuccess: {
-    color: '#10b981',
-    fontWeight: '600',
-  },
-  buttonOutline: {
-    backgroundColor: 'transparent',
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
+  receiptDataBox: {
     width: '100%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
-  buttonTextOutline: {
-    color: '#475569',
+  receiptDataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  receiptDataLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  receiptDataValue: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#111827',
+  },
+  receiptStatusValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  secondaryActionBtn: {
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+  },
+  secondaryActionBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
   }
 });
