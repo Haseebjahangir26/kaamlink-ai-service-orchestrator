@@ -6,8 +6,17 @@ load_dotenv()
 
 from models import UserRequest, Intent
 from agents.intent_agent import extract_intent
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Kaamlink AI Service Orchestrator API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def read_root():

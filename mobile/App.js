@@ -13,8 +13,8 @@ export default function App() {
     setLoading(true);
     setIntentData(null);
     try {
-      // For local testing on emulator, you might need to change localhost to your machine's IP
-      const response = await fetch('http://10.0.2.2:8000/api/request', {
+      // Using 127.0.0.1 so it works in the web emulator test
+      const response = await fetch('http://127.0.0.1:8000/api/request', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

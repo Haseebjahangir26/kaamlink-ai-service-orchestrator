@@ -1,98 +1,145 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { useState } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [requestText, setRequestText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [intentData, setIntentData] = useState(null);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const sendRequest = async () => {
+    if (!requestText.trim()) return;
+    
+    setLoading(true);
+    setIntentData(null);
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: requestText }),
+      });
+      
+      const data = await response.json();
+      setIntentData(data);
+    } catch (error) {
+      console.error(error);
+      alert('Failed to connect to backend. Make sure the FastAPI server is running.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.header}>Kaamlink</Text>
+      <Text style={styles.subHeader}>Service Orchestrator</Text>
+
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="Apna masla batayein (e.g. AC thanda nahi kar raha)"
+          value={requestText}
+          onChangeText={setRequestText}
+          multiline
+        />
+        <TouchableOpacity style={styles.button} onPress={sendRequest} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Find Provider</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {intentData && (
+        <ScrollView style={styles.resultContainer}>
+          <Text style={styles.resultHeader}>Extracted Intent:</Text>
+          <View style={styles.resultCard}>
+            <Text style={styles.resultText}><Text style={styles.bold}>Service:</Text> {intentData.service}</Text>
+            <Text style={styles.resultText}><Text style={styles.bold}>Issue:</Text> {intentData.issue}</Text>
+            <Text style={styles.resultText}><Text style={styles.bold}>Location:</Text> {intentData.location}</Text>
+            <Text style={styles.resultText}><Text style={styles.bold}>Urgency:</Text> {intentData.urgency}</Text>
+            <Text style={styles.resultText}><Text style={styles.bold}>Time:</Text> {intentData.preferred_time}</Text>
+            <Text style={styles.resultText}><Text style={styles.bold}>Confidence:</Text> {Math.round(intentData.confidence * 100)}%</Text>
+          </View>
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    padding: 20,
+    paddingTop: 60,
+  },
+  header: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#005ac2',
+    textAlign: 'center',
+  },
+  subHeader: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 30,
+  },
+  inputContainer: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  input: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    padding: 15,
+    minHeight: 100,
+    fontSize: 16,
+    textAlignVertical: 'top',
+    marginBottom: 15,
+  },
+  button: {
+    backgroundColor: '#005ac2',
+    padding: 15,
+    borderRadius: 12,
     alignItems: 'center',
-    gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  resultContainer: {
+    flex: 1,
+    width: '100%',
   },
+  resultHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  resultCard: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#b76dff',
+    marginBottom: 20,
+    elevation: 2,
+  },
+  resultText: {
+    fontSize: 15,
+    marginBottom: 5,
+    color: '#444',
+  },
+  bold: {
+    fontWeight: 'bold',
+    color: '#222',
+  }
 });
