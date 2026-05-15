@@ -24,7 +24,6 @@ export default function HomeScreen() {
         if (response.ok) {
           const data = await response.json();
           if (Array.isArray(data)) {
-            // Only update if logs changed to prevent unnecessary re-renders
             if (JSON.stringify(data) !== JSON.stringify(logs)) {
               LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
               setLogs(data);
@@ -37,7 +36,7 @@ export default function HomeScreen() {
     };
     
     fetchLogs();
-    const intervalId = setInterval(fetchLogs, 1500); // Poll faster for the "live" effect
+    const intervalId = setInterval(fetchLogs, 1500);
     return () => clearInterval(intervalId);
   }, [logs]);
 
@@ -52,7 +51,6 @@ export default function HomeScreen() {
     setIsDiscovering(true);
     
     try {
-      // 1. Get Intent
       const intentRes = await fetch('http://127.0.0.1:8000/api/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,7 +62,6 @@ export default function HomeScreen() {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setIntentData(intent);
 
-      // 2. Discover Providers (this will take ~5 seconds due to dramatic delays)
       const providersRes = await fetch('http://127.0.0.1:8000/api/providers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -73,7 +70,7 @@ export default function HomeScreen() {
       if (!providersRes.ok) throw new Error(await providersRes.text());
       const providersList = await providersRes.json();
       
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setProviders(providersList || []);
 
     } catch (error) {
@@ -99,7 +96,7 @@ export default function HomeScreen() {
         }),
       });
       const data = await res.json();
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setBookingId(data.booking_id);
     } catch (err) {
       console.error(err);
@@ -113,56 +110,60 @@ export default function HomeScreen() {
     <ScrollView style={styles.container}>
       <View style={styles.heroSection}>
         <Text style={styles.header}>Kaamlink</Text>
-        <Text style={styles.subHeader}>AI Service Orchestrator</Text>
+        <Text style={styles.subHeader}>Service Orchestrator</Text>
       </View>
 
-      {/* Agent Trace Panel */}
+      <View style={styles.inputCard}>
+        <Text style={styles.inputLabel}>Describe Your Issue</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. AC thanda nahi kar raha, G-13 me a jao"
+          placeholderTextColor="#94a3b8"
+          value={requestText}
+          onChangeText={setRequestText}
+          multiline
+        />
+        <TouchableOpacity style={styles.buttonPrimary} onPress={sendRequest} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.buttonTextPrimary}>Find Provider</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.tracePanel}>
         <View style={styles.traceHeaderRow}>
-          <Text style={styles.traceHeader}>Live Agent Trace</Text>
-          {(loading || isDiscovering) && <ActivityIndicator size="small" color="#00f2fe" />}
+          <Text style={styles.traceHeader}>System Activity Log</Text>
+          {(loading || isDiscovering) && <ActivityIndicator size="small" color="#64748b" />}
         </View>
         <ScrollView style={styles.traceScroll}>
-          {logs.length === 0 && <Text style={styles.logReasoning}>Waiting for action...</Text>}
+          {logs.length === 0 && <Text style={styles.logReasoning}>System idle.</Text>}
           {logs.map((log, idx) => (
             <View key={log.id || idx} style={styles.logItem}>
-              <Text style={styles.logAgent}>[{log.agent_name}]</Text>
+              <View style={styles.logHeader}>
+                <Text style={styles.logAgent}>{log.agent_name}</Text>
+              </View>
               <Text style={styles.logDecision}>{log.decision}</Text>
-              {log.reasoning && <Text style={styles.logReasoning}>↳ {log.reasoning}</Text>}
+              {log.reasoning && <Text style={styles.logReasoning}>{log.reasoning}</Text>}
             </View>
           ))}
         </ScrollView>
       </View>
 
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Apna masla batayein (e.g. AC thanda nahi kar raha)"
-          placeholderTextColor="#64748b"
-          value={requestText}
-          onChangeText={setRequestText}
-          multiline
-        />
-        <TouchableOpacity style={styles.button} onPress={sendRequest} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#0f172a" />
-          ) : (
-            <Text style={styles.buttonText}>FIND PROVIDER</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
       {intentData && !bookingId && (
         <View style={styles.resultContainer}>
-          <View style={styles.intentPill}>
-            <Text style={styles.intentPillText}>🎯 {intentData.service} in {intentData.location}</Text>
+          <View style={styles.intentSummary}>
+            <Text style={styles.intentSummaryText}>
+              Extracted Intent: <Text style={styles.strong}>{intentData.service}</Text> in <Text style={styles.strong}>{intentData.location}</Text>
+            </Text>
           </View>
           
-          <Text style={styles.resultHeader}>Top Ranked Providers</Text>
+          <Text style={styles.sectionTitle}>Available Providers</Text>
           {providers.length === 0 && !isDiscovering ? (
-            <Text style={styles.logReasoning}>No providers found for this service/location.</Text>
+            <Text style={styles.emptyState}>No providers available for this criteria.</Text>
           ) : (
-            providers.map((p, index) => (
+            providers.map((p) => (
               <View key={p.id} style={styles.providerCard}>
                 <View style={styles.providerInfoRow}>
                   <View style={styles.avatar}>
@@ -171,20 +172,20 @@ export default function HomeScreen() {
                   <View style={styles.providerDetailsCol}>
                     <Text style={styles.providerName}>{p.name}</Text>
                     <View style={styles.badgeRow}>
-                      <Text style={styles.badgeText}>⭐ {p.rating}</Text>
-                      {p.rating > 4.7 && <Text style={styles.premiumBadge}>PRO</Text>}
+                      <Text style={styles.badgeText}>⭐ {p.rating} / 5.0</Text>
+                      <Text style={styles.badgeText}>•</Text>
                       <Text style={styles.badgeText}>📍 {p.location}</Text>
                     </View>
                   </View>
                 </View>
                 <View style={styles.providerActionRow}>
-                  <Text style={styles.priceText}>Rs. {p.base_price}</Text>
+                  <Text style={styles.priceText}>Base Rate: <Text style={styles.strong}>Rs. {p.base_price}</Text></Text>
                   <TouchableOpacity 
                     style={styles.bookBtn} 
                     onPress={() => bookProvider(p.id)}
                     disabled={bookingLoading}
                   >
-                    <Text style={styles.bookBtnText}>BOOK NOW</Text>
+                    <Text style={styles.bookBtnText}>Book Service</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -195,19 +196,26 @@ export default function HomeScreen() {
 
       {bookingId && (
         <View style={styles.receiptCard}>
-          <Text style={styles.receiptHeader}>🎉 Booking Confirmed!</Text>
+          <Text style={styles.receiptHeader}>Booking Confirmed</Text>
           <View style={styles.receiptDetails}>
-            <Text style={styles.receiptText}>ID: <Text style={styles.glowText}>{bookingId}</Text></Text>
-            <Text style={styles.receiptText}>Service: {intentData.service}</Text>
+            <Text style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>Booking ID:</Text> {bookingId}
+            </Text>
+            <Text style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>Service:</Text> {intentData.service}
+            </Text>
+            <Text style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>Status:</Text> <Text style={styles.statusSuccess}>Active</Text>
+            </Text>
           </View>
-          <TouchableOpacity style={styles.buttonSecondary} onPress={() => {
+          <TouchableOpacity style={styles.buttonOutline} onPress={() => {
             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             setBookingId(null); 
             setIntentData(null); 
             setProviders([]); 
             setRequestText('');
           }}>
-            <Text style={styles.buttonTextSecondary}>Start New Request</Text>
+            <Text style={styles.buttonTextOutline}>New Request</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -219,164 +227,184 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#f8fafc',
     padding: 20,
     paddingTop: 50,
   },
   heroSection: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   header: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: 1,
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#0f172a',
   },
   subHeader: {
     fontSize: 14,
-    color: '#00f2fe',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginTop: 5,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  inputCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    padding: 16,
+    minHeight: 100,
+    fontSize: 15,
+    color: '#0f172a',
+    textAlignVertical: 'top',
+    marginBottom: 16,
+  },
+  buttonPrimary: {
+    backgroundColor: '#2563eb',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  buttonTextPrimary: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
   },
   tracePanel: {
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: 16,
-    padding: 15,
-    marginBottom: 25,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
     height: 180,
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.2)',
+    borderColor: '#e2e8f0',
   },
   traceHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    borderBottomColor: '#cbd5e1',
     paddingBottom: 8,
   },
   traceHeader: {
-    color: '#00f2fe',
-    fontWeight: '700',
-    fontSize: 12,
-    letterSpacing: 1,
+    color: '#475569',
+    fontWeight: '600',
+    fontSize: 13,
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   traceScroll: {
     flex: 1,
   },
   logItem: {
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  logAgent: {
-    color: '#4facfe',
-    fontSize: 11,
-    fontWeight: 'bold',
+  logHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 2,
   },
+  logAgent: {
+    color: '#2563eb',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   logDecision: {
-    color: '#f8fafc',
-    fontSize: 13,
+    color: '#334155',
+    fontSize: 14,
+    fontWeight: '500',
   },
   logReasoning: {
-    color: '#94a3b8',
-    fontSize: 11,
+    color: '#64748b',
+    fontSize: 13,
     marginTop: 2,
-  },
-  inputContainer: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 16,
-    padding: 18,
-    minHeight: 100,
-    fontSize: 16,
-    color: '#fff',
-    textAlignVertical: 'top',
-    marginBottom: 15,
-  },
-  button: {
-    backgroundColor: '#00f2fe',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#00f2fe',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  buttonText: {
-    color: '#0f172a',
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  intentPill: {
-    backgroundColor: 'rgba(0, 242, 254, 0.1)',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.3)',
-  },
-  intentPillText: {
-    color: '#00f2fe',
-    fontSize: 12,
-    fontWeight: 'bold',
   },
   resultContainer: {
     width: '100%',
   },
-  resultHeader: {
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 15,
-    color: '#fff',
+  intentSummary: {
+    backgroundColor: '#e0e7ff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4f46e5',
+  },
+  intentSummaryText: {
+    color: '#3730a3',
+    fontSize: 14,
+  },
+  strong: {
+    fontWeight: '700',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#0f172a',
+    marginBottom: 12,
+  },
+  emptyState: {
+    color: '#64748b',
+    fontStyle: 'italic',
   },
   providerCard: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: '#e2e8f0',
     marginBottom: 12,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   providerInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#334155',
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#e2e8f0',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   avatarText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
+    color: '#475569',
+    fontSize: 16,
+    fontWeight: '600',
   },
   providerDetailsCol: {
     flex: 1,
   },
   providerName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f172a',
     marginBottom: 4,
   },
   badgeRow: {
@@ -384,88 +412,87 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   badgeText: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    marginRight: 10,
-  },
-  premiumBadge: {
-    backgroundColor: '#f59e0b',
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: '900',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginRight: 10,
+    color: '#64748b',
+    fontSize: 13,
+    marginRight: 8,
   },
   providerActionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.05)',
-    paddingTop: 15,
+    borderTopColor: '#f1f5f9',
+    paddingTop: 12,
   },
   priceText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '800',
+    color: '#475569',
+    fontSize: 14,
   },
   bookBtn: {
     backgroundColor: '#10b981',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 6,
   },
   bookBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: '#ffffff',
+    fontWeight: '600',
     fontSize: 13,
-    letterSpacing: 1,
   },
   receiptCard: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    backgroundColor: '#ffffff',
     padding: 24,
-    borderRadius: 16,
-    alignItems: 'center',
+    borderRadius: 12,
     marginTop: 10,
     borderWidth: 1,
-    borderColor: '#10b981',
+    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
   },
   receiptHeader: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#10b981',
-    marginBottom: 15,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 20,
+    textAlign: 'center',
   },
   receiptDetails: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    padding: 15,
-    borderRadius: 8,
     width: '100%',
-    marginBottom: 20,
+    marginBottom: 24,
+    backgroundColor: '#f8fafc',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
-  receiptText: {
+  receiptRow: {
     fontSize: 14,
-    color: '#cbd5e1',
+    color: '#334155',
     marginBottom: 8,
   },
-  glowText: {
-    color: '#00f2fe',
-    fontWeight: 'bold',
+  receiptLabel: {
+    fontWeight: '600',
+    color: '#64748b',
   },
-  buttonSecondary: {
+  statusSuccess: {
+    color: '#10b981',
+    fontWeight: '600',
+  },
+  buttonOutline: {
     backgroundColor: 'transparent',
-    padding: 15,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#00f2fe',
+    borderColor: '#cbd5e1',
     width: '100%',
   },
-  buttonTextSecondary: {
-    color: '#00f2fe',
+  buttonTextOutline: {
+    color: '#475569',
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '600',
   }
 });
