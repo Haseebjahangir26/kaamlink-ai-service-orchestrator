@@ -45,6 +45,9 @@ export default function HomeScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: requestText }),
       });
+      if (!intentRes.ok) {
+        throw new Error(await intentRes.text());
+      }
       const intent = await intentRes.json();
       setIntentData(intent);
 
@@ -54,12 +57,15 @@ export default function HomeScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(intent),
       });
+      if (!providersRes.ok) {
+        throw new Error(await providersRes.text());
+      }
       const providersList = await providersRes.json();
-      setProviders(providersList);
+      setProviders(providersList || []);
 
     } catch (error) {
       console.error(error);
-      alert('Failed to connect to backend. Make sure FastAPI server is running.');
+      alert('Request Failed: ' + error.message);
     } finally {
       setLoading(false);
     }

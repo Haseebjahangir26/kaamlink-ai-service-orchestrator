@@ -1,6 +1,9 @@
 from database import get_db
 from models import Intent, Provider
 from typing import List
+import uuid
+import datetime
+from memory_db import agent_logs_memory, providers_memory
 
 def log_agent_action(agent_name: str, decision: str, reasoning: str = ""):
     db = get_db()
@@ -11,7 +14,14 @@ def log_agent_action(agent_name: str, decision: str, reasoning: str = ""):
             'reasoning': reasoning
         }).execute()
     except Exception as e:
-        print(f"Failed to write agent log: {e}")
+        print(f"Fallback: writing agent log to memory: {e}")
+        agent_logs_memory.insert(0, {
+            'id': str(uuid.uuid4()),
+            'agent_name': agent_name,
+            'decision': decision,
+            'reasoning': reasoning,
+            'created_at': datetime.datetime.now().isoformat()
+        })
 
 def discover_providers(intent: Intent) -> List[Provider]:
     db = get_db()
@@ -22,8 +32,12 @@ def discover_providers(intent: Intent) -> List[Provider]:
             f"Intent indicates urgency: {intent.urgency}"
         )
         
-        response = db.table('providers').select('*').execute()
-        providers_data = response.data
+        try:
+            response = db.table('providers').select('*').execute()
+            providers_data = response.data
+        except Exception as e:
+            print(f"Fallback: reading providers from memory: {e}")
+            providers_data = providers_memory
         
         # Filter by service match
         filtered = []
