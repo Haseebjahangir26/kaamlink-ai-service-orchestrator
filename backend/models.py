@@ -29,5 +29,13 @@ class Bid(BaseModel):
     eta_mins: int
     
 class BookingRequest(BaseModel):
-    bid_id: str
+    provider_id: str
     user_id: str
+    service: str
+
+class AgentLog(BaseModel):
+    id: str
+    agent_name: str
+    decision: str
+    reasoning: Optional[str] = None
+    created_at: str
