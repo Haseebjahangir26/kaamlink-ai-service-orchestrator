@@ -1,10 +1,11 @@
 import os
 from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
-from models import UserRequest, Intent
-from agents.intent_agent import extract_intent
 
 load_dotenv()
+
+from models import UserRequest, Intent
+from agents.intent_agent import extract_intent
 
 app = FastAPI(title="Kaamlink AI Service Orchestrator API")
 
