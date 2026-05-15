@@ -3,6 +3,7 @@ from models import Intent, Provider
 from typing import List
 import uuid
 import datetime
+import time
 from memory_db import agent_logs_memory, providers_memory
 
 def log_agent_action(agent_name: str, decision: str, reasoning: str = ""):
@@ -26,11 +27,13 @@ def log_agent_action(agent_name: str, decision: str, reasoning: str = ""):
 def discover_providers(intent: Intent) -> List[Provider]:
     db = get_db()
     try:
+        time.sleep(1.0)
         log_agent_action(
             "Discovery Agent",
-            f"Searching for '{intent.service}' providers in {intent.location}",
-            f"Intent indicates urgency: {intent.urgency}"
+            f"Scanning database for '{intent.service}' providers",
+            f"Location bounds: {intent.location}"
         )
+        time.sleep(1.5)
         
         try:
             response = db.table('providers').select('*').execute()
@@ -43,9 +46,15 @@ def discover_providers(intent: Intent) -> List[Provider]:
         filtered = []
         for p in providers_data:
             services = [s.lower() for s in p.get('services', [])]
-            # Simple keyword match
             if intent.service.lower() in " ".join(services):
                 filtered.append(p)
+                
+        log_agent_action(
+            "Discovery Agent",
+            f"Filtering providers by service capabilities",
+            f"Matched {len(filtered)} potential candidates for '{intent.service}'."
+        )
+        time.sleep(1.5)
                 
         # Rank: Location match first, then Rating
         ranked = sorted(
@@ -60,9 +69,10 @@ def discover_providers(intent: Intent) -> List[Provider]:
         
         log_agent_action(
             "Discovery Agent",
-            f"Found {len(top_3)} matching providers.",
-            f"Ranked by location and rating. Top provider: {top_3[0]['name'] if top_3 else 'None'}"
+            f"Ranking top {len(top_3)} candidates.",
+            f"Ranked by geographic proximity and highest rating. Winner: {top_3[0]['name'] if top_3 else 'None'}"
         )
+        time.sleep(1.0)
         
         return [Provider(**p) for p in top_3]
     except Exception as e:
