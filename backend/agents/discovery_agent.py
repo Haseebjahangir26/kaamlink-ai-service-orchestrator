@@ -28,10 +28,26 @@ def discover_providers(intent: Intent) -> List[Provider]:
     db = get_db()
     try:
         time.sleep(1.0)
+        
+        # EDGE CASE 1: Gibberish / Non-Service Query
+        if intent.service.lower() == "invalid":
+            log_agent_action(
+                "Discovery Agent",
+                "Request rejected",
+                "Non-service query detected. Halting discovery process."
+            )
+            time.sleep(1.0)
+            return []
+
+        # EDGE CASE 2: Missing Location
+        loc_text = f"Location bounds: {intent.location}"
+        if intent.location.lower() == "unknown":
+            loc_text = "Location missing, expanding search radius globally."
+
         log_agent_action(
             "Discovery Agent",
             f"Scanning database for '{intent.service}' providers",
-            f"Location bounds: {intent.location}"
+            loc_text
         )
         time.sleep(1.5)
         
@@ -49,6 +65,15 @@ def discover_providers(intent: Intent) -> List[Provider]:
             if intent.service.lower() in " ".join(services):
                 filtered.append(p)
                 
+        if len(filtered) == 0:
+            log_agent_action(
+                "Discovery Agent",
+                f"No matching providers found",
+                f"Could not locate any registered providers for '{intent.service}'."
+            )
+            time.sleep(1.0)
+            return []
+
         log_agent_action(
             "Discovery Agent",
             f"Filtering providers by service capabilities",
@@ -60,7 +85,7 @@ def discover_providers(intent: Intent) -> List[Provider]:
         ranked = sorted(
             filtered, 
             key=lambda x: (
-                0 if x.get('location', '').lower() == intent.location.lower() else 1,
+                0 if intent.location.lower() != "unknown" and x.get('location', '').lower() == intent.location.lower() else 1,
                 -x.get('rating', 0)
             )
         )
@@ -70,7 +95,7 @@ def discover_providers(intent: Intent) -> List[Provider]:
         log_agent_action(
             "Discovery Agent",
             f"Ranking top {len(top_3)} candidates.",
-            f"Ranked by geographic proximity and highest rating. Winner: {top_3[0]['name'] if top_3 else 'None'}"
+            f"Ranked by geographic proximity and highest rating. Winner: {top_3[0]['name']}"
         )
         time.sleep(1.0)
         
