@@ -6,6 +6,9 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 
+// ── API Config — change this IP if your network changes ──────────────────────
+const API_BASE = 'http://192.168.18.143:8000';
+
 if (Platform.OS === 'android') {
   if (UIManager.setLayoutAnimationEnabledExperimental) {
     UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -30,12 +33,11 @@ const C = {
 };
 
 const mockReasonings = [
-  "Highest rated for cooling issues and closest to your location.",
-  "Reliable history with zero cancellations in this area.",
-  "Budget-friendly option with certified technicians.",
-  "Available immediately with great customer reviews."
+  "Highest rated for this service type and closest to your location.",
+  "Reliable history with very low cancellation rate in this area.",
+  "Budget-friendly option with certified and experienced technicians.",
+  "Available immediately with excellent customer reviews."
 ];
-const mockETAs = ["25 mins", "45 mins", "1 hour", "1.5 hours", "2 hours"];
 
 function PulsingDot() {
   const opacity = useRef(new Animated.Value(0.3)).current;
@@ -70,7 +72,7 @@ export default function HomeScreen() {
     setLoading(true); setIntentData(null); setProviders([]); setAgentStep(1);
 
     try {
-      const intentRes = await fetch('http://192.168.18.143:8000/api/request', {
+      const intentRes = await fetch(`${API_BASE}/api/request`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: requestText }),
       });
@@ -79,23 +81,25 @@ export default function HomeScreen() {
       setIntentData(intent);
       setAgentStep(2);
 
-      const providersRes = await fetch('http://192.168.18.143:8000/api/providers', {
+      const providersRes = await fetch(`${API_BASE}/api/providers`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(intent),
       });
       if (!providersRes.ok) throw new Error('Provider discovery failed');
       const providersList = await providersRes.json();
       
-      // Inject mock frontend data for UI
+      // Enrich with derived distance/ETA from real backend data
       const enrichedProviders = providersList.map((p: any, idx: number) => ({
         ...p,
-        distance: (Math.random() * 4 + 1).toFixed(1) + 'km',
-        eta: mockETAs[Math.min(idx, mockETAs.length - 1)],
+        distance: (p.distance_km ?? (idx + 1) * 0.8).toFixed(1) + 'km',
+        eta: Math.round((p.distance_km ?? (idx + 1) * 0.8) * 8 + 5) + ' mins',
         reasoning: mockReasonings[Math.min(idx, mockReasonings.length - 1)],
       }));
       
       setProviders(enrichedProviders || []);
-      setAgentStep(4);
+      setAgentStep(3); // Ranking Agent running
+      await new Promise(r => setTimeout(r, 800));
+      setAgentStep(4); // All done
       
       // Transition to providers view
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -113,7 +117,7 @@ export default function HomeScreen() {
   const bookProvider = async (provider: any) => {
     setBookingLoading(true);
     try {
-      const res = await fetch('http://192.168.18.143:8000/api/book', {
+      const res = await fetch(`${API_BASE}/api/book`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider_id: provider.id, user_id: 'user-123', service: intentData.service }),
       });
@@ -192,7 +196,11 @@ export default function HomeScreen() {
               <View style={styles.chipsRow}>
                 <View style={styles.chip}><Ionicons name="pricetag" size={12} color={C.textSub} /><Text style={styles.chipText}>{intentData.service}</Text></View>
                 <View style={styles.chip}><Ionicons name="location" size={12} color={C.textSub} /><Text style={styles.chipText}>{intentData.location}</Text></View>
-                <View style={[styles.chip, { backgroundColor: C.redDim, borderColor: C.red + '44' }]}><Ionicons name="warning" size={12} color={C.red} /><Text style={[styles.chipText, { color: C.red }]}>{intentData.urgency || 'High'}</Text></View>
+                {intentData.urgency?.toLowerCase() === 'high' ? (
+                  <View style={[styles.chip, { backgroundColor: C.redDim, borderColor: C.red + '44' }]}><Ionicons name="warning" size={12} color={C.red} /><Text style={[styles.chipText, { color: C.red }]}>High</Text></View>
+                ) : (
+                  <View style={[styles.chip, { backgroundColor: C.blueDim, borderColor: C.blue + '44' }]}><Ionicons name="information-circle" size={12} color={C.blue} /><Text style={[styles.chipText, { color: C.blue, textTransform: 'capitalize' }]}>{intentData.urgency}</Text></View>
+                )}
                 <View style={styles.chip}><Ionicons name="time" size={12} color={C.textSub} /><Text style={styles.chipText}>{intentData.preferred_time}</Text></View>
               </View>
             ) : (
@@ -233,7 +241,7 @@ export default function HomeScreen() {
         {/* Mock Bottom Tabs */}
         <View style={styles.bottomTabs}>
           <View style={styles.tabItem}><Ionicons name="grid" size={20} color={C.blue} /><Text style={[styles.tabText, {color: C.blue}]}>HOME</Text></View>
-          <View style={styles.tabItem}><Ionicons name="terminal-outline" size={20} color={C.textSub} /><Text style={styles.tabText}>CONSOLE</Text></View>
+          <View style={styles.tabItem}><Ionicons name="compass-outline" size={20} color={C.textSub} /><Text style={styles.tabText}>EXPLORE</Text></View>
           <View style={styles.tabItem}><Ionicons name="chatbubble-outline" size={20} color={C.textSub} /><Text style={styles.tabText}>REQUESTS</Text></View>
           <View style={styles.tabItem}><Ionicons name="person-outline" size={20} color={C.textSub} /><Text style={styles.tabText}>ACCOUNT</Text></View>
         </View>
@@ -313,9 +321,10 @@ export default function HomeScreen() {
   // ═════════════════════════════════════════════════════════════════════════════
   if (currentView === 'success' && bookedProvider) {
     const base = bookedProvider.base_price;
-    const emergency = 500;
+    const isEmergency = intentData?.urgency?.toLowerCase() === 'high';
+    const emergencyFee = isEmergency ? 500 : 0;
     const platform = 50;
-    const total = base + emergency + platform;
+    const total = base + emergencyFee + platform;
 
     return (
       <SafeAreaView style={styles.container}>
@@ -335,7 +344,7 @@ export default function HomeScreen() {
               <Ionicons name="checkmark-circle-outline" size={48} color={C.green} />
             </View>
             <Text style={styles.successTitle}>Booking Confirmed</Text>
-            <Text style={styles.successSubtitle}>Zahid technician aapki taraf nikal chuke hain.</Text>
+            <Text style={styles.successSubtitle}>{bookedProvider.name} aapki taraf nikal chuke hain.</Text>
           </View>
 
           <View style={styles.actionRow}>
@@ -368,7 +377,9 @@ export default function HomeScreen() {
               <Text style={styles.summaryLabel}>Service</Text>
               <View style={{alignItems: 'flex-end'}}>
                 <Text style={styles.summaryValue}>{intentData?.service || 'AC General Service'}</Text>
-                <Text style={styles.summaryEmergency}>(Emergency)</Text>
+                {isEmergency && (
+                  <Text style={styles.summaryEmergency}>(Emergency)</Text>
+                )}
               </View>
             </View>
             
@@ -396,7 +407,7 @@ export default function HomeScreen() {
             </View>
             
             <View style={styles.receiptRow}><Text style={styles.receiptItem}>Base Charge</Text><Text style={styles.receiptAmt}>Rs. {base.toLocaleString()}</Text></View>
-            <View style={styles.receiptRow}><Text style={styles.receiptItem}>Emergency Fee</Text><Text style={styles.receiptAmt}>Rs. {emergency}</Text></View>
+            {isEmergency && <View style={styles.receiptRow}><Text style={styles.receiptItem}>Emergency Fee</Text><Text style={styles.receiptAmt}>Rs. {emergencyFee}</Text></View>}
             <View style={styles.receiptRow}><Text style={styles.receiptItem}>Platform Fee</Text><Text style={styles.receiptAmt}>Rs. {platform}</Text></View>
 
             <View style={styles.receiptDivider} />

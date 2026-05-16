@@ -26,9 +26,20 @@ _SERVICE_KEYWORDS = {
 }
 
 _LOCATION_PATTERN = re.compile(
-    r'\b(G-\d+|F-\d+|I-\d+|E-\d+|H-\d+|DHA|Bahria Town|Saddar|Rawalpindi Cantt|RWP|PWD|CDA)\b',
+    r'\b([GFIEHDH]-?\s?\d+|DHA|Bahria Town|Saddar|Rawalpindi Cantt|RWP|PWD|CDA)\b',
     re.IGNORECASE
 )
+
+def _normalize_location(raw: str) -> str:
+    """Normalize common Pakistani sector formats to canonical form e.g. G13 → G-13."""
+    # Remove spaces between letter and number, ensure hyphen: G 13 / G13 → G-13
+    normalized = re.sub(
+        r'\b([A-HI])\s*-?\s*(\d+)\b',
+        lambda m: f"{m.group(1).upper()}-{m.group(2)}",
+        raw,
+        flags=re.IGNORECASE
+    )
+    return normalized.strip()
 
 def _fallback_extract(user_text: str) -> Intent:
     """Rule-based intent extractor — used as fallback when Gemini is down."""
@@ -41,7 +52,10 @@ def _fallback_extract(user_text: str) -> Intent:
             break
 
     loc_match = _LOCATION_PATTERN.search(user_text)
-    detected_location = loc_match.group(0) if loc_match else "unknown"
+    if loc_match:
+        detected_location = _normalize_location(loc_match.group(0))
+    else:
+        detected_location = "unknown"
 
     urgency = "high" if any(w in text_lower for w in ["urgent", "jaldi", "asap", "abhi"]) else "medium"
 
@@ -66,9 +80,21 @@ def extract_intent(user_text: str) -> Intent:
     CRITICAL: You MUST map the service to one of the following exact categories. DO NOT invent new categories:
     ["AC repair", "plumbing", "electrician", "home cleaning", "carpentry", "painting", "pest control", "car wash", "towing"]
 
+    LOCATION EXTRACTION RULES (very important):
+    - Pakistani sectors are written as letter + number combinations.
+    - You MUST normalize them to the canonical hyphenated form.
+    - Examples: "G13" → "G-13", "G 13" → "G-13", "g13" → "G-13", "F7" → "F-7",
+      "F 7" → "F-7", "I8" → "I-8", "H13" → "H-13", "G13 mai" → "G-13",
+      "G-13/2" → "G-13", "sector G 11" → "G-11".
+    - "mai", "mein", "me", "par", "k paas" are Urdu prepositions — ignore them, extract just the sector.
+    - DHA, Bahria Town, Saddar, Cantt are also valid locations.
+    - CRITICAL: If you see ANY mention of a location (like "G13 mai", "F7"), you MUST extract it. DO NOT return "unknown" if a sector or location is present in the text!
+    - Only set location to the exact string "unknown" if no location is mentioned at all.
+
     EDGE CASES:
-    1. If the user's input is gibberish, an everyday greeting, or NOT related to home/local services, you MUST set the "service" field to the exact string "invalid".
-    2. If the user asks for a valid service but does not provide a location, set the "location" field to the exact string "unknown".
+    1. If the user's input is gibberish, an everyday greeting, or NOT related to home/local services,
+       set "service" to the exact string "invalid".
+    2. If no location is mentioned, set "location" to the exact string "unknown".
 
     Return a JSON object exactly matching this schema:
     {
@@ -77,7 +103,7 @@ def extract_intent(user_text: str) -> Intent:
         "location": str (e.g., "G-13", "F-8", or "unknown"),
         "preferred_time": str (e.g., "tomorrow morning", "asap"),
         "budget_sensitive": bool,
-        "urgency": str (e.g., "low", "medium", "high"),
+        "urgency": str (must be exactly "low", "medium", or "high"),
         "confidence": float (between 0.0 and 1.0)
     }
     """
@@ -93,6 +119,10 @@ def extract_intent(user_text: str) -> Intent:
             ),
         )
         data = json.loads(response.text)
+        # Safety net: normalize location even if Gemini returns un-hyphenated form
+        if data.get("location") and data["location"].lower() != "unknown":
+            data["location"] = _normalize_location(data["location"])
+
         return Intent(**data)
 
     except Exception as e:
