@@ -5,7 +5,7 @@ import {
   ScrollView, ActivityIndicator, Animated, Easing
 } from 'react-native';
 
-const API = 'http://127.0.0.1:8000';
+const API = 'http://192.168.18.143:8000';
 const COLORS = {
   bg: '#0A0A14', card: '#12121F', border: '#1E1E35',
   blue: '#4F8EF7', purple: '#A855F7', green: '#22C55E',

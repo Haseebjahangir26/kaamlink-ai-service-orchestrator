@@ -70,7 +70,7 @@ export default function HomeScreen() {
     setLoading(true); setIntentData(null); setProviders([]); setAgentStep(1);
 
     try {
-      const intentRes = await fetch('http://127.0.0.1:8000/api/request', {
+      const intentRes = await fetch('http://192.168.18.143:8000/api/request', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: requestText }),
       });
@@ -79,7 +79,7 @@ export default function HomeScreen() {
       setIntentData(intent);
       setAgentStep(2);
 
-      const providersRes = await fetch('http://127.0.0.1:8000/api/providers', {
+      const providersRes = await fetch('http://192.168.18.143:8000/api/providers', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(intent),
       });
@@ -113,7 +113,7 @@ export default function HomeScreen() {
   const bookProvider = async (provider: any) => {
     setBookingLoading(true);
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/book', {
+      const res = await fetch('http://192.168.18.143:8000/api/book', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider_id: provider.id, user_id: 'user-123', service: intentData.service }),
       });
