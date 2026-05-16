@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView,
-  ActivityIndicator, LayoutAnimation, UIManager, Platform, Animated
+  ActivityIndicator, LayoutAnimation, UIManager, Platform, Animated,
+  SafeAreaView
 } from 'react-native';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 
 if (Platform.OS === 'android') {
   if (UIManager.setLayoutAnimationEnabledExperimental) {
@@ -12,143 +14,114 @@ if (Platform.OS === 'android') {
 
 // ── Design Tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg:         '#07080F',   // near-black canvas
-  surface:    '#0F1117',   // card base
-  surfaceAlt: '#141720',   // slightly lighter panel
-  border:     '#1E2130',   // subtle border
-  borderGlow: '#4facfe40', // neon border hint
-  neon1:      '#00f2fe',   // cyan
-  neon2:      '#4facfe',   // blue
-  accent:     '#635BFF',   // indigo / blurple
-  accentDim:  '#635BFF22',
-  amber:      '#F59E0B',
-  emerald:    '#10B981',
-  text:       '#F1F5F9',
-  textSub:    '#64748B',
-  textMuted:  '#334155',
+  bg:         '#0B0E14',
+  surface:    '#12151E',
+  surfaceAlt: '#1A1D27',
+  border:     '#1C1F2E',
+  blue:       '#3B82F6',
+  blueDim:    '#3B82F622',
+  green:      '#10B981',
+  greenDim:   '#10B98122',
+  red:        '#EF4444',
+  redDim:     '#EF444422',
+  text:       '#F8FAFC',
+  textSub:    '#94A3B8',
+  textMuted:  '#475569',
 };
 
-function PulsingDot({ active }: { active: boolean }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
+const mockReasonings = [
+  "Highest rated for cooling issues and closest to your location.",
+  "Reliable history with zero cancellations in this area.",
+  "Budget-friendly option with certified technicians.",
+  "Available immediately with great customer reviews."
+];
+const mockETAs = ["25 mins", "45 mins", "1 hour", "1.5 hours", "2 hours"];
 
-  useEffect(() => {
-    if (active) {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.parallel([
-            Animated.timing(scale,   { toValue: 1.6, duration: 700, useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0,   duration: 700, useNativeDriver: true }),
-          ]),
-          Animated.parallel([
-            Animated.timing(scale,   { toValue: 1,   duration: 0,   useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 1,   duration: 0,   useNativeDriver: true }),
-          ]),
-        ])
-      );
-      loop.start();
-      return () => loop.stop();
-    }
-  }, [active]);
-
-  return (
-    <View style={{ width: 12, height: 12, marginRight: 8 }}>
-      <Animated.View style={[
-        styles.dotBase,
-        active ? { backgroundColor: C.neon1 } : { backgroundColor: C.textMuted },
-        active && { transform: [{ scale }], opacity },
-      ]} />
-    </View>
-  );
-}
-
-function PulsingEmoji() {
-  const opacity = useRef(new Animated.Value(0.4)).current;
+function PulsingDot() {
+  const opacity = useRef(new Animated.Value(0.3)).current;
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.4, duration: 800, useNativeDriver: true })
+        Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true })
       ])
     ).start();
   }, []);
-  return <Animated.Text style={{ fontSize: 11, opacity }}>🔵</Animated.Text>;
+  return (
+    <Animated.View style={{ opacity, width: 8, height: 8, borderRadius: 4, backgroundColor: C.blue, marginRight: 8, marginTop: 4 }} />
+  );
 }
 
 export default function HomeScreen() {
-  const [requestText, setRequestText]     = useState('');
-  const [loading, setLoading]             = useState(false);
-  const [intentData, setIntentData]       = useState<any>(null);
-  const [providers, setProviders]         = useState<any[]>([]);
+  const [currentView, setCurrentView] = useState<'home' | 'providers' | 'success'>('home');
+  const [requestText, setRequestText] = useState('AC bilkul thanda nahi kar raha, kal subah G-13 mein technician chahiye');
+  const [loading, setLoading] = useState(false);
+  const [intentData, setIntentData] = useState<any>(null);
+  const [providers, setProviders] = useState<any[]>([]);
   const [bookedProvider, setBookedProvider] = useState<any>(null);
-  const [bookingId, setBookingId]         = useState<string | null>(null);
+  const [bookingId, setBookingId] = useState<string | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
-  const [logs, setLogs]                   = useState<any[]>([]);
-  const [isDiscovering, setIsDiscovering] = useState(false);
-
-  // ── Log polling ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const response = await fetch('http://127.0.0.1:8000/api/logs');
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data) && JSON.stringify(data) !== JSON.stringify(logs)) {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            setLogs(data);
-          }
-        }
-      } catch (_) {}
-    };
-    fetchLogs();
-    const id = setInterval(fetchLogs, 1500);
-    return () => clearInterval(id);
-  }, [logs]);
+  const [agentStep, setAgentStep] = useState(0); // 0=idle, 1=intent, 2=discovery, 3=ranking, 4=done
 
   // ── Send request ─────────────────────────────────────────────────────────────
   const sendRequest = async () => {
     if (!requestText.trim()) return;
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setLoading(true); setIntentData(null); setProviders([]); setBookingId(null); setIsDiscovering(true);
+    setLoading(true); setIntentData(null); setProviders([]); setAgentStep(1);
 
     try {
       const intentRes = await fetch('http://127.0.0.1:8000/api/request', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: requestText }),
       });
-      if (!intentRes.ok) throw new Error(await intentRes.text());
+      if (!intentRes.ok) throw new Error('Intent extraction failed');
       const intent = await intentRes.json();
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setIntentData(intent);
+      setAgentStep(2);
 
       const providersRes = await fetch('http://127.0.0.1:8000/api/providers', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(intent),
       });
-      if (!providersRes.ok) throw new Error(await providersRes.text());
+      if (!providersRes.ok) throw new Error('Provider discovery failed');
       const providersList = await providersRes.json();
+      
+      // Inject mock frontend data for UI
+      const enrichedProviders = providersList.map((p: any, idx: number) => ({
+        ...p,
+        distance: (Math.random() * 4 + 1).toFixed(1) + 'km',
+        eta: mockETAs[Math.min(idx, mockETAs.length - 1)],
+        reasoning: mockReasonings[Math.min(idx, mockReasonings.length - 1)],
+      }));
+      
+      setProviders(enrichedProviders || []);
+      setAgentStep(4);
+      
+      // Transition to providers view
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setProviders(providersList || []);
+      setCurrentView('providers');
+
     } catch (error: any) {
       alert('Request Failed: ' + error.message);
+      setAgentStep(0);
     } finally {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setLoading(false); setIsDiscovering(false);
+      setLoading(false);
     }
   };
 
   // ── Book provider ────────────────────────────────────────────────────────────
-  const bookProvider = async (providerId: string) => {
+  const bookProvider = async (provider: any) => {
     setBookingLoading(true);
     try {
       const res = await fetch('http://127.0.0.1:8000/api/book', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider_id: providerId, user_id: 'user-123', service: intentData.service }),
+        body: JSON.stringify({ provider_id: provider.id, user_id: 'user-123', service: intentData.service }),
       });
       const data = await res.json();
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setBookingId(data.booking_id);
-      setBookedProvider(providers.find(p => p.id === providerId));
+      setBookedProvider(provider);
+      setCurrentView('success');
     } catch (err) {
       alert('Failed to book provider.');
     } finally {
@@ -156,336 +129,406 @@ export default function HomeScreen() {
     }
   };
 
-  const isActive = loading || isDiscovering;
+  // ── Render Helpers ───────────────────────────────────────────────────────────
+  const renderAgentStep = (title: string, desc: string, status: 'waiting' | 'running' | 'done') => {
+    return (
+      <View style={[styles.agentRow, status === 'running' && styles.agentRowRunning]}>
+        <View style={styles.agentIconCol}>
+          {status === 'done' && <Ionicons name="checkmark-circle" size={16} color={C.green} style={{marginTop: 2}} />}
+          {status === 'running' && <PulsingDot />}
+          {status === 'waiting' && <Ionicons name="radio-button-off" size={16} color={C.textMuted} style={{marginTop: 2}} />}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.agentTitle, status === 'waiting' && { color: C.textMuted }]}>{title}</Text>
+          <Text style={[styles.agentDesc, status === 'waiting' && { color: C.textMuted }]}>{desc}</Text>
+        </View>
+      </View>
+    );
+  };
 
-  // ── Render ───────────────────────────────────────────────────────────────────
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
-      <View style={styles.appWrapper}>
-
-        {/* ── Header ── */}
-        <View style={styles.headerArea}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoBadgeText}>K</Text>
-          </View>
-          <View>
+  // ═════════════════════════════════════════════════════════════════════════════
+  // HOME VIEW
+  // ═════════════════════════════════════════════════════════════════════════════
+  if (currentView === 'home') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.homeHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={styles.logoBadge}><Text style={styles.logoBadgeText}>K</Text></View>
             <Text style={styles.brandTitle}>Kaamlink</Text>
-            <Text style={styles.brandSubtitle}>AI SERVICE ORCHESTRATOR</Text>
           </View>
-          <View style={styles.headerLiveChip}>
-            <View style={[styles.dotBase, { backgroundColor: C.emerald, width: 6, height: 6, borderRadius: 3, marginRight: 5 }]} />
-            <Text style={styles.headerLiveText}>LIVE</Text>
-          </View>
+          <MaterialIcons name="g-translate" size={22} color={C.textSub} />
         </View>
 
-        {/* ── Input card ── */}
-        <View style={styles.glassCard}>
-          <Text style={styles.sectionHeading}>What do you need help with?</Text>
-          <TextInput
-            style={styles.inputField}
-            placeholder="e.g. AC thanda nahi kar raha, G-13"
-            placeholderTextColor={C.textMuted}
-            value={requestText}
-            onChangeText={setRequestText}
-            multiline
-          />
-          <TouchableOpacity
-            style={[styles.primaryBtn, (!requestText.trim() || loading) && styles.primaryBtnDisabled]}
-            onPress={sendRequest}
-            disabled={loading || !requestText.trim()}
-          >
-            {loading
-              ? <ActivityIndicator color={C.bg} size="small" />
-              : <Text style={styles.primaryBtnText}>⚡  Analyze &amp; Find Provider</Text>
-            }
-          </TouchableOpacity>
-        </View>
-
-        {/* ── System Diagnostics / Agent Trace ── */}
-        <View style={[styles.glassCard, styles.diagnosticCard]}>
-          <View style={styles.diagnosticHeader}>
-            <Text style={styles.diagnosticTitle}>AGENT TRACE</Text>
-            <View style={styles.statusChip}>
-              <PulsingDot active={isActive} />
-              <Text style={[styles.statusText, isActive && { color: C.neon1 }]}>
-                {isActive ? 'Processing' : 'Idle'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.divider} />
-          <ScrollView style={styles.logContainer} nestedScrollEnabled>
-            {logs.length === 0 && <Text style={styles.logEmptyText}>No active operations.</Text>}
-            {logs.map((log, idx) => {
-              const isLatestActive = idx === 0 && isActive;
-              return (
-              <View key={log.id || idx} style={styles.logEntry}>
-                <View style={[styles.logTimelineTrack, { width: 20, marginRight: 8, paddingTop: 1 }]}>
-                  {isLatestActive ? <PulsingEmoji /> : <Text style={{ fontSize: 11 }}>✅</Text>}
-                </View>
-                <View style={styles.logContent}>
-                  <Text style={styles.logAgentName}>{log.agent_name}</Text>
-                  <Text style={[styles.logActionText, isLatestActive && { color: C.neon2 }]}>{log.decision}</Text>
-                  {!!log.reasoning && <Text style={styles.logMetaText}>{log.reasoning}</Text>}
-                </View>
-              </View>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* ── Results ── */}
-        {intentData && !bookingId && (
-          <View>
-            <View style={styles.intentBadge}>
-              <Text style={styles.intentBadgeLabel}>Detected Intent</Text>
-              <Text style={styles.intentBadgeValue}>{intentData.service} · {intentData.location}</Text>
-            </View>
-
-            <Text style={styles.sectionHeading}>Matched Providers</Text>
-
-            {providers.length === 0 && !isDiscovering ? (
-              <View style={styles.emptyStateBox}>
-                <Text style={styles.emptyStateText}>No providers match this request.</Text>
-              </View>
-            ) : (
-              providers.map((p) => {
-                const isPremium = p.rating >= 4.8;
-                return (
-                  <View key={p.id} style={[styles.glassCard, styles.providerCard, isPremium && styles.providerCardPremium]}>
-                    <View style={styles.providerTop}>
-                      {/* Avatar */}
-                      <View style={[styles.avatar, isPremium && styles.avatarPremium]}>
-                        <Text style={styles.avatarText}>{p.name.charAt(0)}</Text>
-                      </View>
-                      {/* Meta */}
-                      <View style={styles.providerMeta}>
-                        <View style={styles.providerNameRow}>
-                          <Text style={styles.providerTitle}>{p.name}</Text>
-                          {isPremium && (
-                            <View style={styles.premiumBadge}>
-                              <Text style={styles.premiumBadgeText}>★ PREMIUM</Text>
-                            </View>
-                          )}
-                        </View>
-                        <View style={styles.providerStats}>
-                          <View style={styles.ratingPill}>
-                            <Text style={styles.ratingText}>★ {p.rating.toFixed(1)}</Text>
-                          </View>
-                          <Text style={styles.locationText}>📍 {p.location}</Text>
-                        </View>
-                      </View>
-                      {/* Price */}
-                      <View style={styles.priceBlock}>
-                        <Text style={styles.priceLabel}>Base Rate</Text>
-                        <Text style={styles.priceValue}>Rs.{p.base_price}</Text>
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.bookBtn, isPremium && styles.bookBtnPremium]}
-                      onPress={() => bookProvider(p.id)}
-                      disabled={bookingLoading}
-                    >
-                      <Text style={[styles.bookBtnText, isPremium && { color: C.bg }]}>Book Appointment</Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })
-            )}
-          </View>
-        )}
-
-        {/* ── Booking Success ── */}
-        {bookingId && bookedProvider && (
-          <View style={[styles.glassCard, styles.successCard]}>
-            <View style={styles.successIconBox}>
-              <Text style={styles.successIcon}>✓</Text>
-            </View>
-            <Text style={styles.successTitle}>Booking Confirmed</Text>
-            <Text style={styles.successDesc}>Your service request has been processed successfully.</Text>
-            <View style={styles.receiptBox}>
-              <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Reference ID</Text>
-                <Text style={styles.receiptValue}>{bookingId.split('-')[0].toUpperCase()}</Text>
-              </View>
-              <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Provider</Text>
-                <Text style={styles.receiptValue}>{bookedProvider.name}</Text>
-              </View>
-              <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Service</Text>
-                <Text style={styles.receiptValue}>{intentData.service}</Text>
-              </View>
-              <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Est. Price</Text>
-                <Text style={styles.receiptValue}>Rs.{bookedProvider.base_price}</Text>
-              </View>
-              <View style={[styles.receiptRow, { borderBottomWidth: 0 }]}>
-                <Text style={styles.receiptLabel}>Status</Text>
-                <Text style={[styles.receiptValue, { color: C.emerald }]}>● Provider Confirmed — arriving in 18 min</Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={() => {
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-              setBookingId(null); setBookedProvider(null); setIntentData(null); setProviders([]); setRequestText('');
-            }}>
-              <Text style={styles.secondaryBtnText}>Create New Request</Text>
+        <ScrollView style={{ flex: 1, padding: 20 }}>
+          <Text style={styles.sectionHeading}>What do you need?</Text>
+          
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.inputArea}
+              placeholder="e.g. AC thanda nahi kar raha..."
+              placeholderTextColor={C.textMuted}
+              value={requestText}
+              onChangeText={setRequestText}
+              multiline
+            />
+            <TouchableOpacity 
+              style={[styles.sendBtn, (!requestText.trim() || loading) && { opacity: 0.5 }]} 
+              onPress={sendRequest}
+              disabled={loading || !requestText.trim()}
+            >
+              {loading ? <ActivityIndicator color="#fff" /> : <Ionicons name="send" size={16} color="#fff" style={{marginLeft: 2}} />}
             </TouchableOpacity>
           </View>
-        )}
 
-      </View>
-    </ScrollView>
-  );
+          {/* AI Intent Extraction */}
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons name="git-network-outline" size={14} color={C.green} />
+            <Text style={styles.sectionLabel}>AI INTENT EXTRACTION</Text>
+          </View>
+          
+          <View style={styles.intentBox}>
+            {intentData ? (
+              <View style={styles.chipsRow}>
+                <View style={styles.chip}><Ionicons name="pricetag" size={12} color={C.textSub} /><Text style={styles.chipText}>{intentData.service}</Text></View>
+                <View style={styles.chip}><Ionicons name="location" size={12} color={C.textSub} /><Text style={styles.chipText}>{intentData.location}</Text></View>
+                <View style={[styles.chip, { backgroundColor: C.redDim, borderColor: C.red + '44' }]}><Ionicons name="warning" size={12} color={C.red} /><Text style={[styles.chipText, { color: C.red }]}>{intentData.urgency || 'High'}</Text></View>
+                <View style={styles.chip}><Ionicons name="time" size={12} color={C.textSub} /><Text style={styles.chipText}>{intentData.preferred_time}</Text></View>
+              </View>
+            ) : (
+              <Text style={{color: C.textMuted, fontSize: 13}}>Waiting for input...</Text>
+            )}
+          </View>
+
+          {/* Agent Trace */}
+          <View style={[styles.sectionHeaderRow, { marginTop: 20 }]}>
+            <Ionicons name="server-outline" size={14} color={C.green} />
+            <Text style={styles.sectionLabel}>AGENT TRACE</Text>
+          </View>
+          
+          <View style={styles.traceBox}>
+            {renderAgentStep(
+              '[INTENT AGENT]', 
+              intentData ? `Extracted ${intentData.service}, ${intentData.location}, ${intentData.urgency} urgency` : 'Awaiting request processing',
+              agentStep > 1 ? 'done' : agentStep === 1 ? 'running' : 'waiting'
+            )}
+            {renderAgentStep(
+              '[DISCOVERY AGENT]' + (agentStep === 2 ? ' Running' : ''), 
+              agentStep > 2 ? `Found ${providers.length} matching providers` : agentStep === 2 ? `Scanning providers in ${intentData?.location || 'area'}...` : 'Pending discovery results',
+              agentStep > 2 ? 'done' : agentStep === 2 ? 'running' : 'waiting'
+            )}
+            {renderAgentStep(
+              '[RANKING AGENT]' + (agentStep === 3 ? ' Running' : agentStep < 3 ? ' Waiting' : ''), 
+              agentStep > 3 ? `Ranked ${providers.length} candidates` : 'Pending discovery results',
+              agentStep > 3 ? 'done' : agentStep === 3 ? 'running' : 'waiting'
+            )}
+            {renderAgentStep(
+              '[BOOKING AGENT]' + (agentStep === 4 ? ' Waiting' : agentStep < 4 ? ' Waiting' : ''), 
+              'Pending selection',
+              'waiting'
+            )}
+          </View>
+        </ScrollView>
+
+        {/* Mock Bottom Tabs */}
+        <View style={styles.bottomTabs}>
+          <View style={styles.tabItem}><Ionicons name="grid" size={20} color={C.blue} /><Text style={[styles.tabText, {color: C.blue}]}>HOME</Text></View>
+          <View style={styles.tabItem}><Ionicons name="terminal-outline" size={20} color={C.textSub} /><Text style={styles.tabText}>CONSOLE</Text></View>
+          <View style={styles.tabItem}><Ionicons name="chatbubble-outline" size={20} color={C.textSub} /><Text style={styles.tabText}>REQUESTS</Text></View>
+          <View style={styles.tabItem}><Ionicons name="person-outline" size={20} color={C.textSub} /><Text style={styles.tabText}>ACCOUNT</Text></View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // PROVIDERS VIEW
+  // ═════════════════════════════════════════════════════════════════════════════
+  if (currentView === 'providers') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.subHeader}>
+          <TouchableOpacity onPress={() => setCurrentView('home')} style={{ padding: 10 }}>
+            <Ionicons name="arrow-back" size={24} color={C.textSub} />
+          </TouchableOpacity>
+          <Text style={styles.subHeaderTitle}>Top Recommendations</Text>
+          <View style={{ width: 44 }} />
+        </View>
+
+        <ScrollView style={{ flex: 1, padding: 20 }}>
+          <View style={styles.banner}>
+            <Ionicons name="flash" size={20} color={C.green} style={{ marginRight: 12 }} />
+            <Text style={styles.bannerText}>
+              Found <Text style={{fontWeight: '700', color: C.text}}>{providers.length} providers</Text> in <Text style={{fontWeight: '700', color: C.text}}>{intentData?.location}</Text> who match your {intentData?.urgency}-urgency {intentData?.service} request.
+            </Text>
+          </View>
+
+          {providers.map((p, idx) => {
+            const isTop = idx === 0;
+            return (
+              <View key={p.id} style={styles.providerCard}>
+                <View style={styles.providerHeader}>
+                  <Text style={styles.providerName}>{p.name}</Text>
+                  <View style={styles.ratingBadge}>
+                    <Ionicons name="star" size={10} color={C.green} style={{marginRight: 4}} />
+                    <Text style={styles.ratingText}>{p.rating.toFixed(1)}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.statsRow}>
+                  <Ionicons name="location-outline" size={12} color={C.textSub} />
+                  <Text style={styles.statText}>{p.distance}</Text>
+                  <Ionicons name="time-outline" size={12} color={C.textSub} style={{marginLeft: 12}} />
+                  <Text style={styles.statText}>ETA {p.eta}</Text>
+                </View>
+
+                <View style={[styles.reasoningBox, isTop && styles.reasoningBoxTop]}>
+                  {isTop && <View style={styles.reasoningDot} />}
+                  <Text style={styles.reasoningText}>{p.reasoning}</Text>
+                </View>
+
+                <View style={styles.priceRow}>
+                  <View>
+                    <Text style={styles.estPriceLabel}>EST. PRICE</Text>
+                    <Text style={styles.estPriceValue}>Rs. {p.base_price.toLocaleString()} - {(p.base_price + 800).toLocaleString()}</Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={[styles.bookBtn, isTop ? styles.bookBtnPrimary : styles.bookBtnSecondary]}
+                    onPress={() => bookProvider(p)}
+                    disabled={bookingLoading}
+                  >
+                    {bookingLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.bookBtnText}>Select & Book</Text>}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // SUCCESS VIEW
+  // ═════════════════════════════════════════════════════════════════════════════
+  if (currentView === 'success' && bookedProvider) {
+    const base = bookedProvider.base_price;
+    const emergency = 500;
+    const platform = 50;
+    const total = base + emergency + platform;
+
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.subHeader}>
+          <TouchableOpacity onPress={() => { setAgentStep(0); setCurrentView('home'); }} style={styles.closeBtn}>
+            <Ionicons name="close" size={20} color={C.textSub} />
+          </TouchableOpacity>
+          <View style={styles.liveTrackingPill}>
+            <View style={styles.liveTrackingDot} />
+            <Text style={styles.liveTrackingText}>LIVE TRACKING</Text>
+          </View>
+        </View>
+
+        <ScrollView style={{ flex: 1, padding: 20 }}>
+          <View style={styles.successHero}>
+            <View style={styles.successCircle}>
+              <Ionicons name="checkmark-circle-outline" size={48} color={C.green} />
+            </View>
+            <Text style={styles.successTitle}>Booking Confirmed</Text>
+            <Text style={styles.successSubtitle}>Zahid technician aapki taraf nikal chuke hain.</Text>
+          </View>
+
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.trackBtn}>
+              <Ionicons name="locate" size={18} color="#fff" style={{marginRight: 8}} />
+              <Text style={styles.trackBtnText}>Track Live</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.callBtn}>
+              <Ionicons name="call-outline" size={20} color={C.textSub} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.providerSummaryCard}>
+            <View style={styles.summaryTop}>
+              <View style={styles.summaryAvatar}>
+                <Text style={styles.summaryAvatarText}>{bookedProvider.name.charAt(0)}</Text>
+              </View>
+              <View>
+                <Text style={styles.summaryName}>{bookedProvider.name}</Text>
+                <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 4}}>
+                  <Ionicons name="star" size={10} color={C.textSub} style={{marginRight: 4}} />
+                  <Text style={styles.summaryRating}>{bookedProvider.rating.toFixed(1)} (120 reviews)</Text>
+                </View>
+              </View>
+            </View>
+            
+            <View style={styles.summaryDivider} />
+
+            <View style={styles.summaryDetailRow}>
+              <Text style={styles.summaryLabel}>Service</Text>
+              <View style={{alignItems: 'flex-end'}}>
+                <Text style={styles.summaryValue}>{intentData?.service || 'AC General Service'}</Text>
+                <Text style={styles.summaryEmergency}>(Emergency)</Text>
+              </View>
+            </View>
+            
+            <View style={[styles.summaryDetailRow, { marginTop: 16 }]}>
+              <Text style={styles.summaryLabel}>Arrival ETA</Text>
+              <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                <Ionicons name="time-outline" size={16} color={C.green} style={{marginRight: 6}} />
+                <Text style={styles.summaryETA}>{bookedProvider.eta}</Text>
+              </View>
+            </View>
+
+            <View style={styles.summaryDivider} />
+
+            <View style={styles.summaryLocationRow}>
+              <Ionicons name="location-outline" size={16} color={C.textSub} style={{marginRight: 8}} />
+              <Text style={styles.summaryLocationText}>House 44, Street 12, {intentData?.location || 'G-13/2'}</Text>
+              <Text style={styles.summaryHomeTag}>HOME</Text>
+            </View>
+          </View>
+
+          <View style={styles.receiptCard}>
+            <View style={styles.receiptHeader}>
+              <Text style={styles.receiptTitle}>Service Receipt</Text>
+              <Text style={styles.receiptId}>#{bookingId?.split('-')[0].toUpperCase() || 'KL-8829-GX'}</Text>
+            </View>
+            
+            <View style={styles.receiptRow}><Text style={styles.receiptItem}>Base Charge</Text><Text style={styles.receiptAmt}>Rs. {base.toLocaleString()}</Text></View>
+            <View style={styles.receiptRow}><Text style={styles.receiptItem}>Emergency Fee</Text><Text style={styles.receiptAmt}>Rs. {emergency}</Text></View>
+            <View style={styles.receiptRow}><Text style={styles.receiptItem}>Platform Fee</Text><Text style={styles.receiptAmt}>Rs. {platform}</Text></View>
+
+            <View style={styles.receiptDivider} />
+
+            <View style={styles.receiptTotalRow}>
+              <Text style={styles.receiptTotalLabel}>Est. Total</Text>
+              <Text style={styles.receiptTotalAmt}>Rs. {total.toLocaleString()}</Text>
+            </View>
+            <Text style={styles.receiptDisclaimer}>Final amount may vary based on parts</Text>
+          </View>
+
+          <TouchableOpacity style={{ alignSelf: 'center', marginTop: 20, marginBottom: 40 }} onPress={() => { setAgentStep(0); setCurrentView('home'); }}>
+            <Text style={{ color: C.textSub, fontSize: 13, fontWeight: '500' }}>Cancel Booking</Text>
+          </TouchableOpacity>
+
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  return null;
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: C.bg },
-  appWrapper:   { maxWidth: 600, width: '100%', alignSelf: 'center', padding: 20, paddingTop: 60 },
-
-  // Glass card
-  glassCard: {
-    backgroundColor: C.surface,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: C.border,
-    shadowColor: C.neon2,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-
-  // Header
-  headerArea:     { flexDirection: 'row', alignItems: 'center', marginBottom: 32 },
-  logoBadge: {
-    width: 44, height: 44, borderRadius: 12,
-    backgroundColor: C.accent,
-    justifyContent: 'center', alignItems: 'center',
-    marginRight: 14,
-    shadowColor: C.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.5, shadowRadius: 12, elevation: 8,
-  },
-  logoBadgeText:  { color: '#fff', fontSize: 22, fontWeight: '800' },
-  brandTitle:     { fontSize: 20, fontWeight: '700', color: C.text, letterSpacing: -0.5 },
-  brandSubtitle:  { fontSize: 10, color: C.textSub, fontWeight: '600', letterSpacing: 1.5 },
-  headerLiveChip: {
-    marginLeft: 'auto', flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#10B98122', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
-    borderWidth: 1, borderColor: '#10B98144',
-  },
-  headerLiveText: { fontSize: 10, fontWeight: '700', color: C.emerald, letterSpacing: 1 },
-
+  container: { flex: 1, backgroundColor: C.bg },
+  
+  // Home Header
+  homeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
+  logoBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1A2133', justifyContent: 'center', alignItems: 'center', marginRight: 12, borderWidth: 1, borderColor: '#2A3347' },
+  logoBadgeText: { color: C.blue, fontSize: 16, fontWeight: '800' },
+  brandTitle: { fontSize: 18, fontWeight: '700', color: C.text },
+  
+  sectionHeading: { fontSize: 20, fontWeight: '700', color: C.text, marginBottom: 16, marginTop: 10 },
+  
   // Input
-  sectionHeading: { fontSize: 15, fontWeight: '600', color: C.text, marginBottom: 14 },
-  inputField: {
-    backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border,
-    borderRadius: 14, padding: 16, minHeight: 110,
-    fontSize: 15, color: C.text, textAlignVertical: 'top', marginBottom: 16, lineHeight: 22,
-  },
-  primaryBtn: {
-    backgroundColor: C.neon1, paddingVertical: 16, borderRadius: 14, alignItems: 'center',
-    shadowColor: C.neon1, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 14, elevation: 8,
-  },
-  primaryBtnDisabled: { backgroundColor: C.textMuted, shadowOpacity: 0 },
-  primaryBtnText: { color: C.bg, fontSize: 14, fontWeight: '700', letterSpacing: 0.4 },
+  inputWrapper: { position: 'relative', marginBottom: 24 },
+  inputArea: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 16, paddingRight: 60, minHeight: 100, fontSize: 15, color: C.text, textAlignVertical: 'top', lineHeight: 22 },
+  sendBtn: { position: 'absolute', right: 12, bottom: 12, width: 36, height: 36, borderRadius: 12, backgroundColor: C.blue, justifyContent: 'center', alignItems: 'center' },
+  
+  // Sections
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  sectionLabel: { fontSize: 11, fontWeight: '800', color: C.textSub, letterSpacing: 1, marginLeft: 8 },
+  
+  // Intent Box
+  intentBox: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 16 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surfaceAlt, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: C.border },
+  chipText: { fontSize: 12, fontWeight: '600', color: C.text, marginLeft: 6 },
+  
+  // Trace Box
+  traceBox: { backgroundColor: '#0F121A', borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 16, marginBottom: 40 },
+  agentRow: { flexDirection: 'row', marginBottom: 16 },
+  agentRowRunning: { backgroundColor: '#1A2B4C', padding: 12, borderRadius: 12, marginHorizontal: -12, marginTop: -4, marginBottom: 12, borderWidth: 1, borderColor: C.blue + '55' },
+  agentIconCol: { width: 24, alignItems: 'center', marginRight: 8 },
+  agentTitle: { fontSize: 12, fontWeight: '700', color: C.textSub, letterSpacing: 0.5, marginBottom: 4 },
+  agentDesc: { fontSize: 13, color: C.text, fontWeight: '500', lineHeight: 18 },
+  
+  // Bottom Tabs
+  bottomTabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.bg, paddingBottom: Platform.OS === 'ios' ? 20 : 10, paddingTop: 10 },
+  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tabText: { fontSize: 9, fontWeight: '700', color: C.textSub, marginTop: 4, letterSpacing: 0.5 },
 
-  // Diagnostics
-  diagnosticCard: { minHeight: 250, maxHeight: 400 },
-  diagnosticHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  diagnosticTitle: { fontSize: 11, fontWeight: '700', color: C.textSub, letterSpacing: 1.5 },
-  statusChip: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.surfaceAlt, paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 20, borderWidth: 1, borderColor: C.border,
-  },
-  dotBase:    { width: 8, height: 8, borderRadius: 4, position: 'absolute' },
-  statusText: { fontSize: 11, fontWeight: '600', color: C.textSub },
-  divider:    { height: 1, backgroundColor: C.border, marginVertical: 14 },
-  logContainer: { flex: 1 },
-  logEmptyText: { fontSize: 13, color: C.textMuted, fontStyle: 'italic' },
-  logEntry:   { flexDirection: 'row', marginBottom: 14 },
-  logTimelineTrack: { width: 14, alignItems: 'center', marginRight: 12, paddingTop: 4 },
-  logTimelineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.neon1, shadowColor: C.neon1, shadowOpacity: 0.8, shadowRadius: 4 },
-  logContent: { flex: 1 },
-  logAgentName: { fontSize: 10, fontWeight: '700', color: C.neon2, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 },
-  logActionText: { fontSize: 13, color: C.text, fontWeight: '500', lineHeight: 19 },
-  logMetaText:   { fontSize: 12, color: C.textSub, marginTop: 3, lineHeight: 17 },
+  // Sub Header
+  subHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10 },
+  subHeaderTitle: { fontSize: 16, fontWeight: '600', color: C.text },
+  
+  // Banner
+  banner: { flexDirection: 'row', backgroundColor: '#16232E', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#23384A', marginBottom: 20 },
+  bannerText: { flex: 1, fontSize: 13, color: '#A5C4DB', lineHeight: 20 },
 
-  // Intent badge
-  intentBadge: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.accentDim, padding: 12, borderRadius: 12,
-    marginBottom: 20, borderWidth: 1, borderColor: C.accent + '55',
-  },
-  intentBadgeLabel: { fontSize: 12, fontWeight: '600', color: C.neon2, marginRight: 8 },
-  intentBadgeValue: { fontSize: 14, fontWeight: '700', color: C.text },
+  // Provider Card
+  providerCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 16, marginBottom: 16 },
+  providerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  providerName: { fontSize: 16, fontWeight: '700', color: C.text },
+  ratingBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#162D24', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#204736' },
+  ratingText: { fontSize: 12, fontWeight: '700', color: C.green },
+  statsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  statText: { fontSize: 12, color: C.textSub, marginLeft: 6 },
+  reasoningBox: { backgroundColor: C.surfaceAlt, padding: 12, borderRadius: 10, marginBottom: 16 },
+  reasoningBoxTop: { backgroundColor: '#1A2433', borderWidth: 1, borderColor: '#2B3F5B' },
+  reasoningDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#38BDF8', position: 'absolute', left: 12, top: 18 },
+  reasoningText: { fontSize: 12, color: '#94A3B8', lineHeight: 18, marginLeft: 14, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  estPriceLabel: { fontSize: 10, fontWeight: '700', color: C.textSub, letterSpacing: 1, marginBottom: 4 },
+  estPriceValue: { fontSize: 14, fontWeight: '700', color: C.text },
+  bookBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10, minWidth: 120, alignItems: 'center' },
+  bookBtnPrimary: { backgroundColor: C.blue },
+  bookBtnSecondary: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border },
+  bookBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
 
-  // Empty
-  emptyStateBox: {
-    backgroundColor: C.surface, padding: 32, borderRadius: 16, alignItems: 'center',
-    borderWidth: 1, borderColor: C.border, borderStyle: 'dashed',
-  },
-  emptyStateText: { fontSize: 14, color: C.textSub },
+  // Success Screen
+  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  liveTrackingPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#162D24', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#204736' },
+  liveTrackingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.green, marginRight: 6 },
+  liveTrackingText: { fontSize: 10, fontWeight: '800', color: C.green, letterSpacing: 1 },
+  successHero: { alignItems: 'center', marginVertical: 30 },
+  successCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#162D24', justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#204736' },
+  successTitle: { fontSize: 24, fontWeight: '700', color: C.text, marginBottom: 8 },
+  successSubtitle: { fontSize: 14, color: C.textSub },
+  
+  actionRow: { flexDirection: 'row', marginBottom: 24, gap: 12 },
+  trackBtn: { flex: 1, flexDirection: 'row', backgroundColor: C.blue, paddingVertical: 16, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  trackBtnText: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  callBtn: { width: 56, height: 56, backgroundColor: C.surface, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: C.border },
 
-  // Provider cards
-  providerCard:        { marginBottom: 14 },
-  providerCardPremium: { borderColor: C.neon2 + '55', shadowColor: C.neon1, shadowOpacity: 0.15 },
-  providerTop:         { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
-  avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: C.accent + '33', justifyContent: 'center', alignItems: 'center', marginRight: 14,
-    borderWidth: 1, borderColor: C.accent + '55',
-  },
-  avatarPremium: { backgroundColor: C.neon1 + '22', borderColor: C.neon1 + '88' },
-  avatarText:    { fontSize: 18, fontWeight: '700', color: C.neon2 },
-  providerMeta:  { flex: 1 },
-  providerNameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 },
-  providerTitle: { fontSize: 15, fontWeight: '600', color: C.text, marginRight: 8 },
-  premiumBadge: {
-    backgroundColor: C.neon1 + '22', paddingHorizontal: 8, paddingVertical: 2,
-    borderRadius: 6, borderWidth: 1, borderColor: C.neon1 + '66',
-  },
-  premiumBadgeText: { fontSize: 9, fontWeight: '800', color: C.neon1, letterSpacing: 0.8 },
-  providerStats: { flexDirection: 'row', alignItems: 'center' },
-  ratingPill: {
-    backgroundColor: '#F59E0B22', paddingHorizontal: 8, paddingVertical: 2,
-    borderRadius: 6, marginRight: 10, borderWidth: 1, borderColor: '#F59E0B44',
-  },
-  ratingText:    { fontSize: 12, fontWeight: '700', color: C.amber },
-  locationText:  { fontSize: 12, color: C.textSub, fontWeight: '500' },
-  priceBlock:    { alignItems: 'flex-end' },
-  priceLabel:    { fontSize: 10, color: C.textMuted, fontWeight: '500', marginBottom: 2 },
-  priceValue:    { fontSize: 16, fontWeight: '700', color: C.text },
-  bookBtn: {
-    backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border,
-    paddingVertical: 12, borderRadius: 10, alignItems: 'center',
-  },
-  bookBtnPremium: { backgroundColor: C.neon1, borderColor: C.neon1, shadowColor: C.neon1, shadowOpacity: 0.4, shadowRadius: 8 },
-  bookBtnText:   { fontSize: 13, fontWeight: '600', color: C.text },
+  providerSummaryCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 24 },
+  summaryTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  summaryAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#1A2B4C', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  summaryAvatarText: { fontSize: 16, fontWeight: '700', color: '#60A5FA' },
+  summaryName: { fontSize: 16, fontWeight: '600', color: C.text },
+  summaryRating: { fontSize: 12, color: C.textSub },
+  summaryDivider: { height: 1, backgroundColor: C.border, marginVertical: 16 },
+  summaryDetailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  summaryLabel: { fontSize: 13, color: C.textSub },
+  summaryValue: { fontSize: 15, fontWeight: '600', color: C.text },
+  summaryEmergency: { fontSize: 11, color: C.red, marginTop: 4 },
+  summaryETA: { fontSize: 16, fontWeight: '700', color: C.green },
+  summaryLocationRow: { flexDirection: 'row', alignItems: 'center' },
+  summaryLocationText: { flex: 1, fontSize: 12, color: C.textSub },
+  summaryHomeTag: { fontSize: 10, fontWeight: '800', color: C.textMuted, letterSpacing: 1 },
 
-  // Success
-  successCard:   { alignItems: 'center', marginTop: 8 },
-  successIconBox: {
-    width: 64, height: 64, borderRadius: 32, backgroundColor: C.emerald + '22',
-    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
-    borderWidth: 1, borderColor: C.emerald + '55',
-  },
-  successIcon:  { fontSize: 32, color: C.emerald },
-  successTitle: { fontSize: 20, fontWeight: '700', color: C.text, marginBottom: 6 },
-  successDesc:  { fontSize: 13, color: C.textSub, textAlign: 'center', marginBottom: 24 },
-  receiptBox: {
-    width: '100%', backgroundColor: C.surfaceAlt,
-    borderRadius: 12, padding: 16, marginBottom: 24,
-    borderWidth: 1, borderColor: C.border,
-  },
-  receiptRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
-  receiptLabel: { fontSize: 13, color: C.textSub, fontWeight: '500' },
-  receiptValue: { fontSize: 13, fontWeight: '600', color: C.text },
-  secondaryBtn: {
-    width: '100%', paddingVertical: 13, borderRadius: 12, alignItems: 'center',
-    backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border,
-  },
-  secondaryBtnText: { fontSize: 14, fontWeight: '600', color: C.textSub },
+  receiptCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border },
+  receiptHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  receiptTitle: { fontSize: 15, fontWeight: '600', color: C.text },
+  receiptId: { fontSize: 11, color: C.textSub, letterSpacing: 1, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  receiptRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  receiptItem: { fontSize: 13, color: C.textSub },
+  receiptAmt: { fontSize: 13, color: C.text, fontWeight: '500' },
+  receiptDivider: { height: 1, backgroundColor: C.border, marginVertical: 16, borderStyle: 'dashed' },
+  receiptTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  receiptTotalLabel: { fontSize: 14, color: C.textSub },
+  receiptTotalAmt: { fontSize: 24, fontWeight: '700', color: C.text },
+  receiptDisclaimer: { fontSize: 10, color: C.textMuted, textAlign: 'right' },
 });
