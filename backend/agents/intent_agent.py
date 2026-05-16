@@ -66,6 +66,7 @@ def _fallback_extract(user_text: str) -> Intent:
         preferred_time="asap",
         budget_sensitive=False,
         urgency=urgency,
+        complexity="intermediate",
         confidence=0.6
     )
 
@@ -104,8 +105,10 @@ def extract_intent(user_text: str) -> Intent:
         "preferred_time": str (e.g., "tomorrow morning", "asap"),
         "budget_sensitive": bool,
         "urgency": str (must be exactly "low", "medium", or "high"),
+        "complexity": str (must be exactly "basic", "intermediate", or "complex" based on the described problem),
         "confidence": float (between 0.0 and 1.0)
     }
+    Complexity guide: basic = minor/routine fix, intermediate = requires diagnosis, complex = major repair/replacement.
     """
 
     try:

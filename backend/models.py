@@ -11,6 +11,7 @@ class Intent(BaseModel):
     preferred_time: str
     budget_sensitive: bool
     urgency: str
+    complexity: Optional[str] = "intermediate"
     confidence: float
 
 class Provider(BaseModel):
